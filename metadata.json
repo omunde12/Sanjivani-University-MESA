@@ -1,0 +1,6 @@
+{
+  "name": "MESA Council 2026–2027 | Sanjivani University",
+  "description": "Official portal for the Mechanical Engineering Students' Association (MESA) Council at Sanjivani University, featuring events, workshops, council members, and student initiatives.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

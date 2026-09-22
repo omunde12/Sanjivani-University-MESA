@@ -1652,12 +1652,18 @@
               <i class="fa-solid fa-image text-sanjivani-blue"></i>
               <span>University Crest Image File</span>
             </h4>
-            <span class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Vector SVG Active</span>
+            <span id="logo-status-badge" class="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Vector SVG Active</span>
           </div>
           <p class="text-slate-500">
-            Select your exact <code>1000403477.png</code> file to instantly replace the vector crest across the header, hero, and footer:
+            Select your exact <code>1000403477.png</code> file to permanently replace the vector crest across the header, hero, and footer:
           </p>
-          <div class="flex items-center space-x-2 pt-1">
+          <div class="flex items-center space-x-3 pt-1">
+            <div id="crest-preview-box" class="h-10 w-12 rounded border border-slate-200 bg-white flex items-center justify-center p-1 overflow-hidden shrink-0">
+              <svg class="h-8 w-auto object-contain" viewBox="0 0 280 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M140 20 L240 70 L240 150 L140 200 L40 150 L40 70 Z" stroke="#0b1b3d" stroke-width="8" fill="#f8fafc"/>
+                <text x="140" y="125" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="36" fill="#0b1b3d">SU</text>
+              </svg>
+            </div>
             <label class="cursor-pointer px-3 py-2 rounded-lg bg-white border border-slate-300 hover:border-sanjivani-blue font-semibold text-sanjivani-navy shadow-sm inline-flex items-center space-x-2 transition-all">
               <i class="fa-solid fa-upload text-sanjivani-blue"></i>
               <span>Select 1000403477.png from Device</span>
@@ -3461,29 +3467,90 @@
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = function(e) {
-        const dataUrl = e.target.result;
-        // Update all custom logo images
+    function applyCustomLogo(logoUrl) {
+      const badge = document.getElementById('logo-status-badge');
+      const previewBox = document.getElementById('crest-preview-box');
+
+      if (logoUrl) {
         document.querySelectorAll('.su-logo-custom').forEach(img => {
-          img.src = dataUrl;
+          img.src = logoUrl;
           img.classList.remove('hidden');
         });
-        // Hide vector SVGs
         document.querySelectorAll('.su-logo-vector').forEach(svg => {
           svg.classList.add('hidden');
         });
-        showToast('University crest updated successfully from local file!');
+        if (badge) {
+          badge.textContent = 'Custom Crest Active';
+          badge.className = 'text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-200';
+        }
+        if (previewBox) {
+          previewBox.innerHTML = `<img src="${logoUrl}" alt="Crest" class="h-full w-auto object-contain">`;
+        }
+      } else {
+        document.querySelectorAll('.su-logo-custom').forEach(img => {
+          img.src = '';
+          img.classList.add('hidden');
+        });
+        document.querySelectorAll('.su-logo-vector').forEach(svg => {
+          svg.classList.remove('hidden');
+        });
+        if (badge) {
+          badge.textContent = 'Vector SVG Active';
+          badge.className = 'text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200';
+        }
+        if (previewBox) {
+          previewBox.innerHTML = `<svg class="h-8 w-auto object-contain" viewBox="0 0 280 220" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M140 20 L240 70 L240 150 L140 200 L40 150 L40 70 Z" stroke="#0b1b3d" stroke-width="8" fill="#f8fafc"/><text x="140" y="125" text-anchor="middle" font-family="sans-serif" font-weight="900" font-size="36" fill="#0b1b3d">SU</text></svg>`;
+        }
+      }
+    }
+
+    async function handleLogoUpload(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const dataUrl = e.target.result;
+        applyCustomLogo(dataUrl);
+        try { localStorage.setItem('mesa_custom_crest', dataUrl); } catch(err) {}
+
+        try {
+          const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUri: dataUrl, prefix: 'crest' })
+          });
+          const uploadData = await uploadRes.json();
+          const persistentUrl = (uploadData && uploadData.url) ? uploadData.url : dataUrl;
+
+          await fetch('/api/logo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: persistentUrl })
+          });
+
+          applyCustomLogo(persistentUrl);
+          try { localStorage.setItem('mesa_custom_crest', persistentUrl); } catch(err) {}
+          showToast('University crest permanently saved and active across all views!');
+        } catch (serverErr) {
+          showToast('University crest updated locally.');
+        }
       };
       reader.readAsDataURL(file);
     }
 
-    function resetToVectorLogo() {
-      document.querySelectorAll('.su-logo-custom').forEach(img => {
-        img.classList.add('hidden');
-      });
-      document.querySelectorAll('.su-logo-vector').forEach(svg => {
-        svg.classList.remove('hidden');
-      });
+    async function resetToVectorLogo() {
+      applyCustomLogo(null);
+      try { localStorage.removeItem('mesa_custom_crest'); } catch(err) {}
+      const input = document.getElementById('logo-file-input');
+      if (input) input.value = '';
+      try {
+        await fetch('/api/logo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: null })
+        });
+      } catch (err) {}
       showToast('Restored crisp vector Sanjivani University crest.');
     }
 
