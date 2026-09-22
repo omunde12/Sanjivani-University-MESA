@@ -600,6 +600,23 @@
   ],
   "registrations": [
     {
+      "id": "reg-1790043533718",
+      "eventId": "evt-1",
+      "eventTitle": "National Engineer's Day",
+      "name": "Aarav Sharma",
+      "prn": "SU26MECH505",
+      "branch": "Mechanical Engineering",
+      "year": "Final Year B.Tech",
+      "email": "aarav.sharma@sanjivani.edu.in",
+      "phone": "+91 9876543210",
+      "entryType": "free",
+      "fee": 0,
+      "transactionId": null,
+      "paymentScreenshot": null,
+      "notes": "None",
+      "timestamp": "22 Sept 2026, 02:18 am"
+    },
+    {
       "id": "reg-1789885705099",
       "eventId": "evt-cad-2026",
       "eventTitle": "MESA Event",

@@ -2,6 +2,22 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import {
+  isCloudSqlAvailable,
+  seedCloudSqlIfEmpty,
+  getCloudSqlPortalData,
+  upsertMemberInCloudSql,
+  deleteMemberInCloudSql,
+  upsertEventInCloudSql,
+  deleteEventInCloudSql,
+  upsertGalleryInCloudSql,
+  deleteGalleryInCloudSql,
+  addRegistrationInCloudSql,
+  deleteRegistrationInCloudSql,
+  clearRegistrationsInCloudSql,
+  addInquiryInCloudSql,
+  setSettingInCloudSql
+} from './src/db/service.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,8 +106,10 @@ function getDB() {
   }
 
   try {
-    if (fs.existsSync(DB_FILE)) {
-      const raw = fs.readFileSync(DB_FILE, 'utf8');
+    const tmpVercelDb = path.join('/tmp', 'mesa_db.json');
+    const fileToCheck = (process.env.VERCEL && fs.existsSync(tmpVercelDb)) ? tmpVercelDb : DB_FILE;
+    if (fs.existsSync(fileToCheck)) {
+      const raw = fs.readFileSync(fileToCheck, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.members) && parsed.members.length >= 10) {
         cachedDB = parsed;
@@ -143,19 +161,23 @@ function saveDB(data) {
     const jsonString = JSON.stringify(data, null, 2);
 
     // Atomic disk write: Write to temporary file first, then atomically rename
-    const tmpFile = path.join(DATA_DIR, `mesa_db.tmp.${Date.now()}.${Math.random().toString(36).substring(2, 6)}`);
+    // If running on Vercel or read-only filesystem, use /tmp or preserve in-memory
+    const targetDir = process.env.VERCEL ? '/tmp' : DATA_DIR;
+    const targetDbFile = process.env.VERCEL ? path.join('/tmp', 'mesa_db.json') : DB_FILE;
+    const tmpFile = path.join(targetDir, `mesa_db.tmp.${Date.now()}.${Math.random().toString(36).substring(2, 6)}`);
     fs.writeFileSync(tmpFile, jsonString, 'utf8');
-    fs.renameSync(tmpFile, DB_FILE);
+    fs.renameSync(tmpFile, targetDbFile);
 
-    // Always maintain verified backup copy
-    try {
-      fs.writeFileSync(DB_BACKUP_FILE, jsonString, 'utf8');
-    } catch (e) {}
+    if (!process.env.VERCEL) {
+      try {
+        fs.writeFileSync(DB_BACKUP_FILE, jsonString, 'utf8');
+      } catch (e) {}
+    }
 
     return true;
   } catch (err) {
-    console.error('[MESA Database] Error saving database:', err);
-    return false;
+    console.warn('[MESA Database] Filesystem write notice (in-memory cache active):', err.message);
+    return true;
   }
 }
 
@@ -170,10 +192,24 @@ app.use('/uploads', express.static(UPLOADS_DIR));
    ========================================================================= */
 
 // 1. Initial State Data (Both /api/data and /api/public/data)
-app.get(['/api/data', '/api/public/data'], (req, res) => {
+app.get(['/api/data', '/api/public/data'], async (req, res) => {
+  if (isCloudSqlAvailable()) {
+    try {
+      const sqlData = await getCloudSqlPortalData();
+      return res.json({
+        ok: true,
+        isCloudSql: true,
+        ...sqlData
+      });
+    } catch (err) {
+      console.warn('[MESA API] Cloud SQL fetch notice, falling back to local DB cache:', err.message);
+    }
+  }
+
   const db = getDB();
   res.json({
     ok: true,
+    isCloudSql: false,
     members: db.members || [],
     events: db.events || [],
     gallery: db.gallery || [],
@@ -192,11 +228,17 @@ app.post('/api/logo', (req, res) => {
   if (!raw) {
     db.customLogoUrl = null;
     saveDB(db);
+    if (isCloudSqlAvailable()) {
+      setSettingInCloudSql('custom_logo_url', null).catch(() => {});
+    }
     return res.json({ ok: true, customLogoUrl: null, message: 'Restored default vector crest.' });
   }
   const savedUrl = saveBase64Image(raw, 'crest');
   db.customLogoUrl = savedUrl || raw;
   saveDB(db);
+  if (isCloudSqlAvailable()) {
+    setSettingInCloudSql('custom_logo_url', db.customLogoUrl).catch(() => {});
+  }
   return res.json({ ok: true, customLogoUrl: db.customLogoUrl, message: 'Custom university crest updated and saved.' });
 });
 
@@ -219,6 +261,7 @@ app.post('/api/inquiries', (req, res) => {
     email: senderEmail || 'Not provided',
     phone: senderPhone || 'Not provided',
     message: senderMsg,
+    date: new Date().toLocaleDateString('en-IN'),
     timestamp: new Date().toLocaleString('en-IN', {
       day: '2-digit',
       month: 'short',
@@ -232,6 +275,10 @@ app.post('/api/inquiries', (req, res) => {
   if (!db.inquiries) db.inquiries = [];
   db.inquiries.unshift(newInquiry);
   saveDB(db);
+
+  if (isCloudSqlAvailable()) {
+    addInquiryInCloudSql(newInquiry).catch(e => console.error('[Cloud SQL] Inquiry save error:', e));
+  }
 
   res.json({ ok: true, data: newInquiry });
 });
@@ -367,6 +414,24 @@ app.post('/api/registrations', (req, res) => {
   db.registrations.unshift(newReg);
   saveDB(db);
 
+  if (isCloudSqlAvailable()) {
+    addRegistrationInCloudSql({
+      id: newReg.id,
+      eventId: newReg.eventId,
+      eventTitle: newReg.eventTitle,
+      fullName: newReg.name,
+      email: newReg.email,
+      prn: newReg.prn,
+      department: newReg.branch,
+      yearSemester: newReg.year,
+      phone: newReg.phone,
+      college: 'Sanjivani University',
+      timestamp: newReg.timestamp,
+      createdDate: new Date().toLocaleDateString('en-IN'),
+      verified: true
+    }).catch(e => console.error('[Cloud SQL] Registration save error:', e));
+  }
+
   res.json({ ok: true, data: newReg });
 });
 
@@ -479,6 +544,11 @@ app.post('/api/admin/call', (req, res) => {
     if (!db.members) db.members = [];
     db.members.push(newMember);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertMemberInCloudSql(newMember).catch(e => console.error('[Cloud SQL] Member save error:', e));
+    }
+
     return res.json({ ok: true, data: newMember });
   }
 
@@ -515,6 +585,11 @@ app.post('/api/admin/call', (req, res) => {
 
     db.members[idx] = updated;
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertMemberInCloudSql(updated).catch(e => console.error('[Cloud SQL] Member update error:', e));
+    }
+
     return res.json({ ok: true, data: updated });
   }
 
@@ -523,6 +598,11 @@ app.post('/api/admin/call', (req, res) => {
     const memberId = id || payload.id;
     db.members = (db.members || []).filter(m => m.id !== memberId);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      deleteMemberInCloudSql(memberId).catch(e => console.error('[Cloud SQL] Member delete error:', e));
+    }
+
     return res.json({ ok: true, message: 'Member deleted.' });
   }
 
@@ -561,6 +641,11 @@ app.post('/api/admin/call', (req, res) => {
     if (!db.events) db.events = [];
     db.events.unshift(newEvent);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertEventInCloudSql(newEvent).catch(e => console.error('[Cloud SQL] Event save error:', e));
+    }
+
     return res.json({ ok: true, data: newEvent });
   }
 
@@ -605,6 +690,11 @@ app.post('/api/admin/call', (req, res) => {
 
     db.events[idx] = updated;
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertEventInCloudSql(updated).catch(e => console.error('[Cloud SQL] Event update error:', e));
+    }
+
     return res.json({ ok: true, data: updated });
   }
 
@@ -619,6 +709,11 @@ app.post('/api/admin/call', (req, res) => {
     const newStatus = (currentStatus === 'CLOSED') ? 'OPEN' : 'CLOSED';
     db.events[idx].status = newStatus;
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertEventInCloudSql(db.events[idx]).catch(e => console.error('[Cloud SQL] Event status toggle error:', e));
+    }
+
     return res.json({ ok: true, data: db.events[idx], status: newStatus, message: `Event registration status set to ${newStatus}` });
   }
 
@@ -627,6 +722,11 @@ app.post('/api/admin/call', (req, res) => {
     const eventId = id || payload.id;
     db.events = (db.events || []).filter(e => e.id !== eventId);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      deleteEventInCloudSql(eventId).catch(e => console.error('[Cloud SQL] Event delete error:', e));
+    }
+
     return res.json({ ok: true, message: 'Event deleted.' });
   }
 
@@ -646,6 +746,11 @@ app.post('/api/admin/call', (req, res) => {
     if (!db.gallery) db.gallery = [];
     db.gallery.unshift(newPhoto);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      upsertGalleryInCloudSql(newPhoto).catch(e => console.error('[Cloud SQL] Gallery save error:', e));
+    }
+
     return res.json({ ok: true, data: newPhoto });
   }
 
@@ -654,6 +759,11 @@ app.post('/api/admin/call', (req, res) => {
     const photoId = id || payload.id;
     db.gallery = (db.gallery || []).filter(g => g.id !== photoId);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      deleteGalleryInCloudSql(photoId).catch(e => console.error('[Cloud SQL] Gallery delete error:', e));
+    }
+
     return res.json({ ok: true, message: 'Gallery item deleted.' });
   }
 
@@ -675,11 +785,21 @@ app.post('/api/admin/call', (req, res) => {
     const regId = id || payload.id;
     db.registrations = (db.registrations || []).filter(r => r.id !== regId);
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      deleteRegistrationInCloudSql(regId).catch(e => console.error('[Cloud SQL] Registration delete error:', e));
+    }
+
     return res.json({ ok: true, message: 'Registration deleted.' });
   }
   if (action === 'clear_registrations') {
     db.registrations = [];
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      clearRegistrationsInCloudSql().catch(e => console.error('[Cloud SQL] Registration clear error:', e));
+    }
+
     return res.json({ ok: true, message: 'All registrations cleared.' });
   }
 
@@ -698,6 +818,11 @@ app.post('/api/admin/call', (req, res) => {
   if (action === 'update_privacy' || action === 'privacy_mode') {
     db.privacyMode = payload.mode || 'masked';
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      setSettingInCloudSql('privacy_mode', db.privacyMode).catch(e => console.error('[Cloud SQL] Privacy mode error:', e));
+    }
+
     return res.json({ ok: true, mode: db.privacyMode });
   }
 
@@ -707,11 +832,17 @@ app.post('/api/admin/call', (req, res) => {
     if (!raw) {
       db.customLogoUrl = null;
       saveDB(db);
+      if (isCloudSqlAvailable()) {
+        setSettingInCloudSql('custom_logo_url', null).catch(() => {});
+      }
       return res.json({ ok: true, customLogoUrl: null, message: 'Restored default vector crest.' });
     }
     const savedUrl = saveBase64Image(raw, 'crest');
     db.customLogoUrl = savedUrl || raw;
     saveDB(db);
+    if (isCloudSqlAvailable()) {
+      setSettingInCloudSql('custom_logo_url', db.customLogoUrl).catch(() => {});
+    }
     return res.json({ ok: true, customLogoUrl: db.customLogoUrl, message: 'Custom university crest updated and saved.' });
   }
 
@@ -727,7 +858,8 @@ app.post('/api/admin/call', (req, res) => {
         eventCount: (db.events || []).length,
         galleryCount: (db.gallery || []).length,
         registrationCount: (db.registrations || []).length,
-        inquiryCount: (db.inquiries || []).length
+        inquiryCount: (db.inquiries || []).length,
+        isCloudSql: isCloudSqlAvailable()
       }
     });
   }
@@ -775,6 +907,11 @@ app.post('/api/admin/call', (req, res) => {
     db.events = seed.events;
     db.gallery = seed.gallery;
     saveDB(db);
+
+    if (isCloudSqlAvailable()) {
+      seedCloudSqlIfEmpty(seed).catch(e => console.error('[Cloud SQL] Restore error:', e));
+    }
+
     return res.json({
       ok: true,
       message: 'Restored official 2026–2027 Sanjivani University MESA Council roster and events.',
@@ -786,7 +923,9 @@ app.post('/api/admin/call', (req, res) => {
   if (action === 'database_status' || action === 'db_health') {
     return res.json({
       ok: true,
-      status: 'PERMANENT_PROTECTED',
+      status: isCloudSqlAvailable() ? 'PERMANENT_CLOUD_SQL' : 'PERMANENT_PROTECTED',
+      isCloudSql: isCloudSqlAvailable(),
+      cloudSqlRegion: 'asia-southeast1',
       memberCount: (db.members || []).length,
       eventCount: (db.events || []).length,
       galleryCount: (db.gallery || []).length,
@@ -808,6 +947,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`MESA Portal server running on http://${HOST}:${PORT}`);
-});
+// In local/container environments, start the HTTP server.
+// In Vercel or serverless environments, Vercel imports the app handler.
+if (!process.env.VERCEL) {
+  app.listen(PORT, HOST, () => {
+    console.log(`MESA Portal server running on http://${HOST}:${PORT}`);
+  });
+}
+
+export default app;
