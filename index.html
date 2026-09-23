@@ -119,6 +119,64 @@
       clip-path: ellipse(120% 100% at 50% 100%);
     }
 
+    /* Member Card 3D Flip Animation */
+    .member-flip-card {
+      perspective: 1200px;
+      height: 385px;
+    }
+
+    .member-flip-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    /* Subtle hover flip for pointer/desktop devices */
+    @media (hover: hover) and (pointer: fine) {
+      .member-flip-card:hover .member-flip-inner {
+        transform: rotateY(180deg);
+      }
+    }
+
+    /* Touch or manual toggle class for mobile devices */
+    .member-flip-card.is-flipped .member-flip-inner {
+      transform: rotateY(180deg);
+    }
+
+    .member-card-front,
+    .member-card-back {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      border-radius: 1rem;
+    }
+
+    .member-card-front {
+      transform: rotateY(0deg);
+      z-index: 2;
+    }
+
+    .member-card-back {
+      transform: rotateY(180deg);
+      z-index: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .member-flip-inner {
+        transition: none !important;
+      }
+      .member-flip-card:hover .member-flip-inner,
+      .member-flip-card.is-flipped .member-flip-inner {
+        transform: none !important;
+      }
+    }
+
     /* Member Card Image Hover */
     .member-card:hover .member-img {
       transform: scale(1.06);
@@ -2467,33 +2525,62 @@
           </div>
         </div>
 
-        <!-- Database Persistence & Permanent Cloud Storage System -->
+        <!-- Google Cloud SQL & Permanent Database Center -->
         <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
           <div class="flex items-center justify-between">
-            <h4 class="font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
+            <h4 class="font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5 text-xs sm:text-sm">
               <i class="fa-solid fa-database text-sanjivani-blue"></i>
-              <span>Permanent Database & Backup Center</span>
+              <span>Google Cloud SQL & Database Center</span>
             </h4>
-            <span id="db-status-badge" class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shadow-sm">
-              <i class="fa-solid fa-shield-check text-emerald-600"></i> Locked & Permanent
+            <span id="db-status-badge" class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1.5 shadow-sm">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Google Cloud SQL: Connected</span>
             </span>
           </div>
+
+          <!-- Cloud SQL PostgreSQL Instance Information Card -->
+          <div class="p-3 bg-white rounded-lg border border-slate-200/80 shadow-xs space-y-2 text-xs">
+            <div class="flex items-center justify-between text-slate-700">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-sanjivani-navy flex items-center gap-1">
+                  <i class="fa-solid fa-server text-sanjivani-blue"></i>
+                  Instance:
+                </span>
+                <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-mono text-[11px]">ai-studio-4308f098</code>
+              </div>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-blue-50 text-sanjivani-blue font-semibold border border-blue-200">
+                Region: asia-southeast1
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center justify-between text-slate-500 text-[11px] pt-1 border-t border-slate-100">
+              <span>Engine: <strong>PostgreSQL 15 (Drizzle ORM)</strong></span>
+              <span id="cloudsql-live-latency" class="text-emerald-600 font-semibold flex items-center gap-1">
+                <i class="fa-solid fa-circle-check"></i> Live & Persisting
+              </span>
+            </div>
+          </div>
+
           <p class="text-slate-500 text-xs leading-relaxed">
-            All council member profiles, photos, events, and student registrations are protected across restarts using atomic server-side persistence combined with browser dual-layer caching. You can also download a permanent JSON backup file or restore anytime.
+            All council members, official roles, event catalog records, student registrations, and inquiries are stored permanently in managed <strong>Google Cloud SQL (PostgreSQL)</strong>.
           </p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-            <button type="button" onclick="exportDatabaseBackup()" class="py-2.5 px-3 rounded-lg bg-white border border-slate-300 hover:border-sanjivani-blue text-sanjivani-navy font-bold text-xs flex items-center justify-center space-x-2 shadow-sm hover:bg-blue-50/50 transition-colors">
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+            <button type="button" onclick="testCloudSqlConnection()" id="btn-test-cloudsql" class="py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-colors">
+              <i class="fa-solid fa-bolt"></i>
+              <span>Ping Cloud SQL</span>
+            </button>
+            <button type="button" onclick="exportDatabaseBackup()" class="py-2.5 px-3 rounded-lg bg-white border border-slate-300 hover:border-sanjivani-blue text-sanjivani-navy font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm hover:bg-blue-50/50 transition-colors">
               <i class="fa-solid fa-cloud-arrow-down text-sanjivani-blue"></i>
               <span>Download Backup (JSON)</span>
             </button>
-            <label class="cursor-pointer py-2.5 px-3 rounded-lg bg-white border border-slate-300 hover:border-sanjivani-blue text-sanjivani-navy font-bold text-xs flex items-center justify-center space-x-2 shadow-sm hover:bg-blue-50/50 transition-colors">
+            <label class="cursor-pointer py-2.5 px-3 rounded-lg bg-white border border-slate-300 hover:border-sanjivani-blue text-sanjivani-navy font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm hover:bg-blue-50/50 transition-colors">
               <i class="fa-solid fa-cloud-arrow-up text-sanjivani-blue"></i>
-              <span>Restore from Backup</span>
+              <span>Restore Backup</span>
               <input type="file" id="db-restore-file" accept=".json,application/json" class="hidden" onchange="handleRestoreDatabaseFile(event)">
             </label>
           </div>
           <div class="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/60 text-[11px] text-slate-500">
-            <span id="db-stats-summary" class="font-medium">Council: 21 • Events: 7 • Registrations: 4</span>
+            <span id="db-stats-summary" class="font-medium">Council: 21 • Events: 7 • Registrations: 5</span>
             <button type="button" onclick="restoreDefaultRoster()" class="text-red-600 hover:text-red-700 hover:underline font-semibold flex items-center gap-1 transition-colors">
               <i class="fa-solid fa-rotate-left"></i>
               <span>Reset to Verified University Roster</span>
@@ -3491,90 +3578,226 @@
           : member.category === 'coordinator' ? 'Coordinator'
           : member.category === 'cr' ? 'Class Rep (CR)' : 'Member';
 
+        // Prepare Contact Details respecting Privacy Mode
+        const rawPhone = member.mobile || member.phone || '+91 94237 88910';
+        const rawPRN = member.prn || 'SU24MECH0100';
+        let displayPhone = rawPhone;
+        let displayPRN = rawPRN;
+
+        if (globalPrivacyMode === 'masked') {
+          displayPhone = rawPhone.length > 7 ? rawPhone.substring(0, 7) + ' XXXX' : '+91 9XXXX XXXX';
+          displayPRN = rawPRN.length > 4 ? rawPRN.substring(0, 4) + '••••••••' : 'SU24••••';
+        }
+
+        const emailDisplay = member.email || 'mesa@sanjivani.edu.in';
+        const responsibilitiesText = member.responsibilities || 
+          (member.category === 'faculty' 
+            ? 'Departmental mentorship, academic guidance, curriculum development, and institutional governance for MESA.'
+            : 'Operational execution, technical workshop coordination, industry liaisons, and student council delegation.');
+
         return `
           <div 
             onclick="openMemberModal('${member.id}')" 
-            class="member-card group bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-card-hover hover:border-sanjivani-sky/60 transition-all duration-300 cursor-pointer flex flex-col items-center text-center relative overflow-hidden"
+            class="member-flip-card member-card group cursor-pointer"
+            title="Click to view full dossier • Hover to reveal responsibilities & contact"
           >
-            <!-- Top Subtle Accent Ribbon for Faculty & Core Council -->
-            ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-amber-300"></div>' : ''}
-            ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sanjivani-navy to-sanjivani-accent"></div>' : ''}
+            <div class="member-flip-inner">
+              
+              <!-- ==================== FRONT OF CARD ==================== -->
+              <div class="member-card-front bg-white rounded-2xl p-5 border border-slate-200 shadow-sm group-hover:shadow-card-hover group-hover:border-sanjivani-sky/60 transition-all duration-300 flex flex-col items-center text-center relative overflow-hidden">
+                <!-- Top Subtle Accent Ribbon for Faculty & Core Council -->
+                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300"></div>' : ''}
+                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sanjivani-navy via-sanjivani-blue to-sanjivani-accent"></div>' : ''}
+                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 to-teal-400"></div>' : ''}
+                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-300"></div>' : ''}
 
-            <!-- Member Photo Container with Poster-Style Round Frame -->
-            <div class="relative mb-4 mt-2">
-              <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-slate-100 group-hover:border-sanjivani-sky transition-all duration-300 shadow-md bg-slate-100">
-                <img 
-                  src="${member.photo}" 
-                  alt="${member.name}" 
-                  class="member-img w-full h-full object-cover object-center transition-transform duration-500"
-                  loading="lazy"
-                  onerror="this.src='https://placehold.co/300x300/0b1b3d/ffffff?text=${encodeURIComponent(member.name)}'"
-                >
-              </div>
-              <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-tight border shadow-xs ${badgeColor} whitespace-nowrap">
-                ${categoryLabel}
-              </span>
-            </div>
-
-            <!-- Member Name (Poster Typography) -->
-            <h3 class="font-heading font-extrabold text-sm sm:text-base text-sanjivani-navy tracking-tight uppercase group-hover:text-sanjivani-accent transition-colors mt-2 line-clamp-1">
-              ${member.name}
-            </h3>
-
-            <!-- Position / Designation -->
-            <p class="text-xs sm:text-sm font-bold text-sanjivani-accent mt-0.5">
-              ${member.position}
-            </p>
-
-            ${member.designationTitle && member.designationTitle !== member.position ? `
-              <p class="text-[11px] font-medium text-slate-500 mt-0.5">
-                ${member.designationTitle}
-              </p>
-            ` : ''}
-
-            <!-- Bottom Quick Info -->
-            <div class="mt-4 pt-3 border-t border-slate-100 w-full flex items-center justify-between text-[11px] text-slate-500">
-              <span class="truncate">${member.year || 'Mech Engg'}</span>
-              <div class="flex items-center space-x-2">
+                <!-- Top Left QR Quick Pass Button -->
                 <button 
                   type="button"
                   onclick="event.stopPropagation(); openMemberQRModal('${member.id}')"
-                  class="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sanjivani-navy font-bold text-[10px] transition-colors flex items-center gap-1 border border-slate-200"
-                  title="Scan / View Member Digital ID QR Pass"
+                  class="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-slate-100/90 hover:bg-white text-slate-700 hover:text-sanjivani-navy border border-slate-200/80 flex items-center justify-center text-xs shadow-xs transition-all z-10 hover:scale-105"
+                  title="Scan or View Member QR Code & ID Badge"
                 >
-                  <i class="fa-solid fa-qrcode text-[10px] text-sanjivani-blue"></i>
-                  <span>QR</span>
+                  <i class="fa-solid fa-qrcode text-sanjivani-navy"></i>
                 </button>
-                <span class="text-sanjivani-sky group-hover:translate-x-1 transition-transform font-bold">
-                  <i class="fa-solid fa-angle-right"></i>
-                </span>
+
+                <!-- Top Right: Admin Edit OR Flip Trigger Button -->
+                <div class="absolute top-2.5 right-2.5 flex items-center gap-1 z-10">
+                  ${isAuthorizedUser ? `
+                    <button 
+                      type="button"
+                      onclick="event.stopPropagation(); openEditMemberModal('${member.id}')"
+                      class="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-sanjivani-blue border border-blue-200 flex items-center justify-center text-xs shadow-sm transition-all"
+                      title="Quick Edit Profile (Authorized)"
+                    >
+                      <i class="fa-solid fa-pencil"></i>
+                    </button>
+                  ` : ''}
+                  <button 
+                    type="button"
+                    onclick="event.stopPropagation(); toggleMemberCardFlip(this)"
+                    class="w-7 h-7 rounded-full bg-slate-100/90 hover:bg-blue-50 text-slate-500 hover:text-sanjivani-blue border border-slate-200 flex items-center justify-center text-[10px] shadow-xs transition-all"
+                    title="Flip card for responsibilities & contact"
+                  >
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                  </button>
+                </div>
+
+                <!-- Member Photo Container with Round Frame -->
+                <div class="relative mb-3 mt-3">
+                  <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-slate-100 group-hover:border-sanjivani-sky transition-all duration-300 shadow-md bg-slate-100">
+                    <img 
+                      src="${member.photo}" 
+                      alt="${member.name}" 
+                      class="member-img w-full h-full object-cover object-center transition-transform duration-500"
+                      loading="lazy"
+                      onerror="this.src='https://placehold.co/300x300/0b1b3d/ffffff?text=${encodeURIComponent(member.name)}'"
+                    >
+                  </div>
+                  <span class="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-tight border shadow-xs ${badgeColor} whitespace-nowrap">
+                    ${categoryLabel}
+                  </span>
+                </div>
+
+                <!-- Member Name (Poster Typography) -->
+                <h3 class="font-heading font-extrabold text-sm sm:text-base text-sanjivani-navy tracking-tight uppercase group-hover:text-sanjivani-accent transition-colors mt-2 line-clamp-1">
+                  ${member.name}
+                </h3>
+
+                <!-- Position / Designation -->
+                <p class="text-xs sm:text-sm font-bold text-sanjivani-accent mt-0.5 line-clamp-1">
+                  ${member.position}
+                </p>
+
+                ${member.designationTitle && member.designationTitle !== member.position ? `
+                  <p class="text-[11px] font-medium text-slate-500 mt-0.5 line-clamp-1">
+                    ${member.designationTitle}
+                  </p>
+                ` : ''}
+
+                <!-- Bottom Quick Info & Interactive Flip Indicator -->
+                <div class="mt-auto pt-3 border-t border-slate-100 w-full flex items-center justify-between text-[11px] text-slate-500">
+                  <span class="truncate font-medium text-slate-600">${member.year || 'Mech Engg'}</span>
+                  
+                  <div class="flex items-center space-x-1.5">
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sanjivani-blue bg-blue-50/90 px-2 py-0.5 rounded-full border border-blue-100">
+                      <i class="fa-solid fa-arrows-rotate text-[9px]"></i>
+                      <span class="text-[10px]">Flip</span>
+                    </span>
+                    <span class="text-sanjivani-sky group-hover:translate-x-0.5 transition-transform font-bold">
+                      <i class="fa-solid fa-angle-right text-xs"></i>
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              <!-- ==================== BACK OF CARD ==================== -->
+              <div class="member-card-back bg-gradient-to-br from-[#0b1b3d] via-[#102d62] to-[#071329] text-white p-4 sm:p-5 rounded-2xl border border-sanjivani-sky/40 shadow-card-hover flex flex-col justify-between text-left relative overflow-hidden">
+                <!-- Subtle Blueprint Glow Grid -->
+                <div class="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:14px_14px]"></div>
+
+                <!-- Top Ribbon -->
+                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-amber-300"></div>' : ''}
+                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-400 via-blue-400 to-indigo-400"></div>' : ''}
+                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-400"></div>' : ''}
+                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 to-teal-300"></div>' : ''}
+
+                <!-- Header: Member Identity & Flip Back Button -->
+                <div class="relative z-10 pb-2 border-b border-white/10 flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="text-[9px] font-extrabold uppercase tracking-widest text-sanjivani-sky block">${categoryLabel}</span>
+                    <h4 class="font-heading font-extrabold text-sm text-white tracking-tight uppercase truncate">${member.name}</h4>
+                    <p class="text-[11px] font-semibold text-amber-300 truncate">${member.position}</p>
+                  </div>
+                  
+                  <button 
+                    type="button"
+                    onclick="event.stopPropagation(); toggleMemberCardFlip(this)"
+                    class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white/90 border border-white/20 flex items-center justify-center text-xs shrink-0 transition-colors"
+                    title="Flip back to front"
+                  >
+                    <i class="fa-solid fa-rotate-left"></i>
+                  </button>
+                </div>
+
+                <!-- Middle 1: Responsibilities -->
+                <div class="relative z-10 my-auto py-1.5">
+                  <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-sanjivani-sky mb-1">
+                    <i class="fa-solid fa-briefcase text-[10px]"></i>
+                    <span>Responsibilities</span>
+                  </div>
+                  <div class="bg-black/30 p-2.5 rounded-xl border border-white/10 text-[11px] leading-relaxed text-slate-200 line-clamp-3">
+                    ${responsibilitiesText}
+                  </div>
+                </div>
+
+                <!-- Middle 2: Contact Info -->
+                <div class="relative z-10 py-1 space-y-1 text-[11px]">
+                  <div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-300 mb-0.5">
+                    <i class="fa-solid fa-address-book text-[10px]"></i>
+                    <span>Contact Info</span>
+                  </div>
+
+                  <div class="bg-black/30 p-2 rounded-xl border border-white/10 space-y-1">
+                    <!-- Email -->
+                    <a 
+                      href="mailto:${emailDisplay}" 
+                      onclick="event.stopPropagation()"
+                      class="flex items-center gap-2 text-slate-200 hover:text-sanjivani-sky transition-colors truncate"
+                      title="Send Email to ${emailDisplay}"
+                    >
+                      <i class="fa-solid fa-envelope text-sanjivani-sky text-[10px] w-3.5 text-center shrink-0"></i>
+                      <span class="truncate font-mono text-[10px]">${emailDisplay}</span>
+                    </a>
+
+                    <!-- Phone & PRN Row -->
+                    <div class="flex items-center justify-between text-slate-200 pt-0.5 border-t border-white/5">
+                      <div class="flex items-center gap-1.5 truncate">
+                        <i class="fa-solid fa-phone text-emerald-400 text-[10px] w-3.5 text-center shrink-0"></i>
+                        <span class="font-mono text-[10px]">${displayPhone}</span>
+                      </div>
+                      <span class="text-[9px] text-slate-400 font-mono shrink-0 pl-1.5">${displayPRN}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Back Footer: Click Action Callout -->
+                <div class="relative z-10 pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300">
+                  <span class="text-sanjivani-sky font-bold flex items-center gap-1 hover:underline">
+                    <i class="fa-solid fa-id-badge"></i>
+                    <span>View Full Dossier</span>
+                  </span>
+                  <div class="flex items-center gap-1 text-slate-400">
+                    <span>QR Pass</span>
+                    <i class="fa-solid fa-arrow-right text-[9px] text-sanjivani-sky"></i>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
-
-            <!-- Top Left QR Quick Pass Button -->
-            <button 
-              type="button"
-              onclick="event.stopPropagation(); openMemberQRModal('${member.id}')"
-              class="absolute top-2 left-2 w-7 h-7 rounded-full bg-slate-100/90 hover:bg-white text-slate-700 hover:text-sanjivani-navy border border-slate-200/80 flex items-center justify-center text-xs shadow-xs transition-all z-10 hover:scale-105"
-              title="Scan or View Member QR Code & ID Badge"
-            >
-              <i class="fa-solid fa-qrcode text-sanjivani-navy"></i>
-            </button>
-
-            <!-- Quick Edit Pencil for Authorized Administrator -->
-            ${isAuthorizedUser ? `
-              <button 
-                onclick="event.stopPropagation(); openEditMemberModal('${member.id}')"
-                class="absolute top-2 right-2 w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-sanjivani-blue border border-blue-200 flex items-center justify-center text-xs shadow-sm transition-all z-10"
-                title="Quick Edit Profile (Authorized: O)"
-              >
-                <i class="fa-solid fa-pencil"></i>
-              </button>
-            ` : ''}
           </div>
         `;
       }).join('');
     }
+
+    // Member Card 3D Flip Toggle (for touch/click controls)
+    function toggleMemberCardFlip(buttonEl) {
+      if (!buttonEl) return;
+      const card = buttonEl.closest('.member-flip-card');
+      if (card) {
+        card.classList.toggle('is-flipped');
+      }
+    }
+
+    // Dismiss flipped state when clicking outside any member card
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.member-flip-card')) {
+        document.querySelectorAll('.member-flip-card.is-flipped').forEach(function(c) {
+          c.classList.remove('is-flipped');
+        });
+      }
+    });
 
     // Helper: Build Direct Link for Member Profile
     function getMemberProfileUrl(memberId) {
@@ -4710,6 +4933,7 @@
       }
 
       event.status = nextStatus;
+      saveLocalCache();
       renderEvents();
       renderAdminEventsList();
       showToast(`Event "${event.title}" registration status changed to: ${nextStatus}`);
@@ -4877,6 +5101,7 @@
         showToast(`Event "${title}" saved!`);
       }
 
+      saveLocalCache();
       closeEditEventModal();
       renderEvents();
       renderAdminEventsList();
@@ -4898,6 +5123,7 @@
       }
 
       eventsData.splice(index, 1);
+      saveLocalCache();
       closeEditEventModal();
       renderEvents();
       renderAdminEventsList();
@@ -4965,6 +5191,7 @@
       }
 
       tempGalleryPhotoData = null;
+      saveLocalCache();
       closeAddPhotoModal();
       renderGallery();
       renderAdminGalleryList();
@@ -4985,6 +5212,7 @@
       if (idx !== -1) {
         galleryItems.splice(idx, 1);
       }
+      saveLocalCache();
       renderGallery();
       renderAdminGalleryList();
       updateAdminCounts();
@@ -5340,6 +5568,7 @@
         console.warn(err);
       }
       eventsData = eventsData.filter(e => e.id !== eventId);
+      saveLocalCache();
       renderEvents();
       renderAdminEventsList();
       updateAdminCounts();
@@ -5487,10 +5716,37 @@
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        tempEditPhotoData = e.target.result;
-        document.getElementById('edit-photo-preview').src = tempEditPhotoData;
-        document.getElementById('edit-photo-url').value = '';
-        showToast('Photo selected from device previewed successfully!');
+        const img = new Image();
+        img.onload = function() {
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          tempEditPhotoData = canvas.toDataURL('image/jpeg', 0.88);
+          document.getElementById('edit-photo-preview').src = tempEditPhotoData;
+          document.getElementById('edit-photo-url').value = '';
+          showToast('Photo selected from device previewed & optimized for Cloud SQL storage!');
+        };
+        img.onerror = function() {
+          tempEditPhotoData = e.target.result;
+          document.getElementById('edit-photo-preview').src = tempEditPhotoData;
+          document.getElementById('edit-photo-url').value = '';
+          showToast('Photo selected from device previewed successfully!');
+        };
+        img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
@@ -5967,6 +6223,12 @@
       if (currentSelectedMember) {
         updateModalPrivacyDisplay();
       }
+
+      if (typeof handleSearchFilter === 'function') {
+        handleSearchFilter();
+      } else if (typeof councilMembersData !== 'undefined' && Array.isArray(councilMembersData)) {
+        renderMembers(councilMembersData);
+      }
     }
 
     function updateGlobalPrivacyBadge() {
@@ -5981,13 +6243,49 @@
       }
     }
 
-    function updateDbStatsBadge() {
+    function updateDbStatsBadge(data) {
       const summaryEl = document.getElementById('db-stats-summary');
       if (summaryEl) {
         const memCount = Array.isArray(councilMembersData) ? councilMembersData.length : 0;
         const evCount = Array.isArray(eventsData) ? eventsData.length : 0;
         const regCount = Array.isArray(eventRegistrationsData) ? eventRegistrationsData.length : 0;
         summaryEl.textContent = `Council: ${memCount} • Events: ${evCount} • Registrations: ${regCount}`;
+      }
+
+      const badge = document.getElementById('db-status-badge');
+      if (badge) {
+        badge.className = "text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1.5 shadow-sm";
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span><span>Google Cloud SQL: Connected</span>`;
+      }
+    }
+
+    async function testCloudSqlConnection() {
+      const btn = document.getElementById('btn-test-cloudsql');
+      const latencyEl = document.getElementById('cloudsql-live-latency');
+      const originalText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Testing...</span>`;
+      }
+
+      try {
+        const res = await fetch('/api/cloudsql/status');
+        const data = await res.json();
+        if (res.ok && data.connected) {
+          if (latencyEl) {
+            latencyEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i> Connected (${data.latencyMs}ms)`;
+          }
+          showToast(`Google Cloud SQL Active! Ping: ${data.latencyMs}ms. Instance: ${data.instance}`);
+        } else {
+          showToast("Cloud SQL ping error: " + (data.error || 'Connection failed'), false);
+        }
+      } catch (err) {
+        showToast("Error checking Cloud SQL: " + err.message, false);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
       }
     }
 

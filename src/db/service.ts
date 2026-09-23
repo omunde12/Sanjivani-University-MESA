@@ -56,17 +56,36 @@ export async function seedCloudSqlIfEmpty(seedData: any) {
         await db.insert(mesaEvents).values({
           id: ev.id,
           title: ev.title,
-          tagline: ev.tagline || '',
-          category: ev.category || '',
+          tag: ev.tag || ev.category || 'Technical Event',
           date: ev.date || '',
-          time: ev.time || '',
+          startTime: ev.startTime || '',
+          endTime: ev.endTime || '',
           venue: ev.venue || '',
-          description: ev.description || '',
+          organizer: ev.organizer || 'Department of Mechanical Engineering & MESA',
+          eligibility: ev.eligibility || 'Open to all Engineering students',
+          rules: ev.rules || '',
+          deadline: ev.deadline || '',
+          maxParticipants: ev.maxParticipants ? Number(ev.maxParticipants) : 100,
+          entryType: (ev.entryType || (ev.fee > 0 ? 'paid' : 'free')).toLowerCase(),
+          fee: ev.fee ? Number(ev.fee) : 0,
+          status: (ev.status || 'OPEN').toUpperCase(),
+          phonepeUpi: ev.phonepeUpi || 'sanjivani.mesa@ybl',
+          phonepeQr: ev.phonepeQr || null,
+          contactName: ev.contactName || ev.coordinator || 'Prof. Pankaj Patil',
+          contactPhone: ev.contactPhone || ev.contact || '+91 94237 88910',
+          contactEmail: ev.contactEmail || 'mesa@sanjivani.edu.in',
+          badgeText: ev.badgeText || (ev.fee > 0 ? `Paid Entry • ₹${ev.fee}` : 'Free Entry'),
+          desc: ev.desc || ev.description || '',
+          icon: ev.icon || 'fa-calendar-check',
+          gradient: ev.gradient || 'from-sanjivani-navy to-sanjivani-blue',
+          tagline: ev.tagline || '',
+          category: ev.category || ev.tag || '',
+          time: ev.time || `${ev.startTime || ''} - ${ev.endTime || ''}`.trim(),
+          description: ev.description || ev.desc || '',
           highlights: ev.highlights || '',
-          registrationFee: ev.registrationFee || '',
-          status: ev.status || 'Upcoming',
-          coordinator: ev.coordinator || '',
-          contact: ev.contact || '',
+          registrationFee: ev.registrationFee || (ev.fee ? `₹${ev.fee}` : 'Free'),
+          coordinator: ev.coordinator || ev.contactName || '',
+          contact: ev.contact || ev.contactPhone || '',
           poster: ev.poster || ''
         }).onConflictDoNothing();
       }
@@ -177,9 +196,37 @@ export async function getCloudSqlPortalData() {
       sortOrder: m.sortOrder || 0
     }));
 
+    // Format events back to frontend schema
+    const formattedEvents = events.map(e => ({
+      id: e.id,
+      title: e.title,
+      tag: e.tag || e.category || 'Technical Event',
+      date: e.date || '',
+      startTime: e.startTime || '',
+      endTime: e.endTime || '',
+      venue: e.venue || '',
+      organizer: e.organizer || 'Department of Mechanical Engineering & MESA',
+      eligibility: e.eligibility || 'Open to all Engineering students across all branches',
+      rules: e.rules || '1. Valid College ID is mandatory.\n2. Report 15 minutes before the start time.\n3. Follow all workshop/competition guidelines.',
+      deadline: e.deadline || '',
+      maxParticipants: e.maxParticipants || 100,
+      entryType: e.entryType || (e.fee && e.fee > 0 ? 'paid' : 'free'),
+      fee: e.fee || 0,
+      status: (e.status || 'OPEN').toUpperCase(),
+      phonepeUpi: e.phonepeUpi || 'sanjivani.mesa@ybl',
+      phonepeQr: e.phonepeQr || null,
+      contactName: e.contactName || e.coordinator || 'Prof. Pankaj Patil (MESA Coordinator)',
+      contactPhone: e.contactPhone || e.contact || '+91 94237 88910',
+      contactEmail: e.contactEmail || 'mesa@sanjivani.edu.in',
+      badgeText: e.badgeText || (e.fee && e.fee > 0 ? `Paid Entry • ₹${e.fee}` : 'Free Entry'),
+      desc: e.desc || e.description || '',
+      icon: e.icon || 'fa-calendar-check',
+      gradient: e.gradient || 'from-sanjivani-navy to-sanjivani-blue'
+    }));
+
     return {
       members: formattedMembers,
-      events,
+      events: formattedEvents,
       gallery,
       registrations,
       inquiries,
@@ -251,38 +298,78 @@ export async function deleteMemberInCloudSql(id: string) {
 // Event operations
 export async function upsertEventInCloudSql(event: any) {
   try {
-    await db.insert(mesaEvents).values({
+    const eventValues = {
       id: event.id,
       title: event.title,
-      tagline: event.tagline || '',
-      category: event.category || '',
+      tag: event.tag || event.category || 'Technical Event',
       date: event.date || '',
-      time: event.time || '',
+      startTime: event.startTime || '',
+      endTime: event.endTime || '',
       venue: event.venue || '',
-      description: event.description || '',
+      organizer: event.organizer || 'Department of Mechanical Engineering & MESA',
+      eligibility: event.eligibility || 'Open to all Engineering students across all branches',
+      rules: event.rules || '',
+      deadline: event.deadline || '',
+      maxParticipants: event.maxParticipants ? Number(event.maxParticipants) : 100,
+      entryType: (event.entryType || (event.fee > 0 ? 'paid' : 'free')).toLowerCase(),
+      fee: event.fee ? Number(event.fee) : 0,
+      status: (event.status || 'OPEN').toUpperCase(),
+      phonepeUpi: event.phonepeUpi || 'sanjivani.mesa@ybl',
+      phonepeQr: event.phonepeQr || null,
+      contactName: event.contactName || event.coordinator || 'Prof. Pankaj Patil (MESA Coordinator)',
+      contactPhone: event.contactPhone || event.contact || '+91 94237 88910',
+      contactEmail: event.contactEmail || 'mesa@sanjivani.edu.in',
+      badgeText: event.badgeText || (event.fee > 0 ? `Paid Entry • ₹${event.fee}` : 'Free Entry'),
+      desc: event.desc || event.description || '',
+      icon: event.icon || 'fa-calendar-check',
+      gradient: event.gradient || 'from-sanjivani-navy to-sanjivani-blue',
+      tagline: event.tagline || event.tag || '',
+      category: event.category || event.tag || '',
+      time: event.time || `${event.startTime || ''} - ${event.endTime || ''}`.trim(),
+      description: event.description || event.desc || '',
       highlights: event.highlights || '',
-      registrationFee: event.registrationFee || '',
-      status: event.status || 'Upcoming',
-      coordinator: event.coordinator || '',
-      contact: event.contact || '',
+      registrationFee: event.registrationFee || (event.fee ? `₹${event.fee}` : 'Free'),
+      coordinator: event.coordinator || event.contactName || '',
+      contact: event.contact || event.contactPhone || '',
       poster: event.poster || '',
       updatedAt: new Date()
-    }).onConflictDoUpdate({
+    };
+
+    await db.insert(mesaEvents).values(eventValues).onConflictDoUpdate({
       target: mesaEvents.id,
       set: {
-        title: event.title,
-        tagline: event.tagline || '',
-        category: event.category || '',
-        date: event.date || '',
-        time: event.time || '',
-        venue: event.venue || '',
-        description: event.description || '',
-        highlights: event.highlights || '',
-        registrationFee: event.registrationFee || '',
-        status: event.status || 'Upcoming',
-        coordinator: event.coordinator || '',
-        contact: event.contact || '',
-        poster: event.poster || '',
+        title: eventValues.title,
+        tag: eventValues.tag,
+        date: eventValues.date,
+        startTime: eventValues.startTime,
+        endTime: eventValues.endTime,
+        venue: eventValues.venue,
+        organizer: eventValues.organizer,
+        eligibility: eventValues.eligibility,
+        rules: eventValues.rules,
+        deadline: eventValues.deadline,
+        maxParticipants: eventValues.maxParticipants,
+        entryType: eventValues.entryType,
+        fee: eventValues.fee,
+        status: eventValues.status,
+        phonepeUpi: eventValues.phonepeUpi,
+        phonepeQr: eventValues.phonepeQr,
+        contactName: eventValues.contactName,
+        contactPhone: eventValues.contactPhone,
+        contactEmail: eventValues.contactEmail,
+        badgeText: eventValues.badgeText,
+        desc: eventValues.desc,
+        icon: eventValues.icon,
+        gradient: eventValues.gradient,
+        tagline: eventValues.tagline,
+        category: eventValues.category,
+        time: eventValues.time,
+        description: eventValues.description,
+        highlights: eventValues.highlights,
+        registrationFee: eventValues.registrationFee,
+        coordinator: eventValues.coordinator,
+        contact: eventValues.contact,
+        poster: eventValues.poster,
         updatedAt: new Date()
       }
     });
@@ -416,3 +503,44 @@ export async function setSettingInCloudSql(key: string, value: string | null) {
     throw new Error('Failed to save setting in Cloud SQL', { cause: error });
   }
 }
+
+// Diagnostic Ping for Google Cloud SQL
+export async function pingCloudSql() {
+  const start = Date.now();
+  if (!isCloudSqlAvailable()) {
+    return {
+      connected: false,
+      error: 'Environment variables for Cloud SQL not detected'
+    };
+  }
+  try {
+    const memCount = await db.select({ id: mesaMembers.id }).from(mesaMembers);
+    const evCount = await db.select({ id: mesaEvents.id }).from(mesaEvents);
+    const regCount = await db.select({ id: mesaRegistrations.id }).from(mesaRegistrations);
+    const inqCount = await db.select({ id: mesaInquiries.id }).from(mesaInquiries);
+    const durationMs = Date.now() - start;
+
+    return {
+      connected: true,
+      instance: 'ai-studio-4308f098',
+      region: 'asia-southeast1',
+      database: process.env.SQL_DB_NAME || 'cloud_sql_development_database',
+      engine: 'PostgreSQL 15',
+      latencyMs: durationMs,
+      tableCounts: {
+        members: memCount.length,
+        events: evCount.length,
+        registrations: regCount.length,
+        inquiries: inqCount.length
+      },
+      timestamp: new Date().toISOString()
+    };
+  } catch (err: any) {
+    return {
+      connected: false,
+      error: err?.message || 'Database ping error',
+      latencyMs: Date.now() - start
+    };
+  }
+}
+

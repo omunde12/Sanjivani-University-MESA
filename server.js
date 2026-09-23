@@ -16,7 +16,8 @@ import {
   deleteRegistrationInCloudSql,
   clearRegistrationsInCloudSql,
   addInquiryInCloudSql,
-  setSettingInCloudSql
+  setSettingInCloudSql,
+  pingCloudSql
 } from './src/db/service.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -184,6 +185,31 @@ function saveDB(data) {
 // Pre-initialize cache immediately on module load
 cachedDB = getDB();
 
+// Sync in-memory cache with Cloud SQL if available
+async function syncCacheFromCloudSql() {
+  if (isCloudSqlAvailable()) {
+    try {
+      const sqlData = await getCloudSqlPortalData();
+      if (sqlData && Array.isArray(sqlData.members) && sqlData.members.length > 0) {
+        cachedDB = {
+          ...cachedDB,
+          members: sqlData.members,
+          events: sqlData.events || [],
+          gallery: sqlData.gallery || [],
+          inquiries: sqlData.inquiries || [],
+          registrations: sqlData.registrations || [],
+          privacyMode: sqlData.privacyMode || cachedDB.privacyMode,
+          customLogoUrl: sqlData.customLogoUrl !== undefined ? sqlData.customLogoUrl : cachedDB.customLogoUrl
+        };
+        console.log('[MESA Database] In-memory cache synchronized with live Cloud SQL data!');
+      }
+    } catch (e) {
+      console.warn('[MESA Database] Cloud SQL initial sync notice:', e.message);
+    }
+  }
+}
+syncCacheFromCloudSql();
+
 // Serve uploaded files statically
 app.use('/uploads', express.static(UPLOADS_DIR));
 
@@ -220,8 +246,37 @@ app.get(['/api/data', '/api/public/data'], async (req, res) => {
   });
 });
 
+// Live Health Check Endpoint
+app.get(['/api/health', '/health'], (req, res) => {
+  res.json({
+    ok: true,
+    status: 'HEALTHY',
+    service: 'MESA Portal Backend',
+    uptimeSeconds: Math.floor(process.uptime()),
+    cloudsqlAvailable: isCloudSqlAvailable(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Live Cloud SQL Status & Health Ping
+app.get('/api/cloudsql/status', async (req, res) => {
+  try {
+    const status = await pingCloudSql();
+    res.json({
+      ok: true,
+      ...status
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message,
+      connected: false
+    });
+  }
+});
+
 // University Crest / Custom Logo API
-app.post('/api/logo', (req, res) => {
+app.post('/api/logo', async (req, res) => {
   const db = getDB();
   const { dataUri, base64, url } = req.body;
   const raw = dataUri || base64 || url;
@@ -229,21 +284,25 @@ app.post('/api/logo', (req, res) => {
     db.customLogoUrl = null;
     saveDB(db);
     if (isCloudSqlAvailable()) {
-      setSettingInCloudSql('custom_logo_url', null).catch(() => {});
+      try {
+        await setSettingInCloudSql('custom_logo_url', null);
+      } catch (e) {}
     }
     return res.json({ ok: true, customLogoUrl: null, message: 'Restored default vector crest.' });
   }
-  const savedUrl = saveBase64Image(raw, 'crest');
-  db.customLogoUrl = savedUrl || raw;
+  saveBase64Image(raw, 'crest');
+  db.customLogoUrl = raw;
   saveDB(db);
   if (isCloudSqlAvailable()) {
-    setSettingInCloudSql('custom_logo_url', db.customLogoUrl).catch(() => {});
+    try {
+      await setSettingInCloudSql('custom_logo_url', db.customLogoUrl);
+    } catch (e) {}
   }
   return res.json({ ok: true, customLogoUrl: db.customLogoUrl, message: 'Custom university crest updated and saved.' });
 });
 
 // 2. Public Contact Us Inquiry Form Submission
-app.post('/api/inquiries', (req, res) => {
+app.post(['/api/inquiries', '/api/contact'], async (req, res) => {
   const { full_name, name, email, mobile, phone, message } = req.body;
   const senderName = (full_name || name || '').trim();
   const senderEmail = (email || '').trim();
@@ -277,14 +336,18 @@ app.post('/api/inquiries', (req, res) => {
   saveDB(db);
 
   if (isCloudSqlAvailable()) {
-    addInquiryInCloudSql(newInquiry).catch(e => console.error('[Cloud SQL] Inquiry save error:', e));
+    try {
+      await addInquiryInCloudSql(newInquiry);
+    } catch (e) {
+      console.error('[Cloud SQL] Inquiry save error:', e);
+    }
   }
 
   res.json({ ok: true, data: newInquiry });
 });
 
 // 3. Public Event Registration Submission
-app.post('/api/registrations', (req, res) => {
+app.post('/api/registrations', async (req, res) => {
   const {
     event_id, eventId, eventTitle,
     full_name, name,
@@ -415,21 +478,25 @@ app.post('/api/registrations', (req, res) => {
   saveDB(db);
 
   if (isCloudSqlAvailable()) {
-    addRegistrationInCloudSql({
-      id: newReg.id,
-      eventId: newReg.eventId,
-      eventTitle: newReg.eventTitle,
-      fullName: newReg.name,
-      email: newReg.email,
-      prn: newReg.prn,
-      department: newReg.branch,
-      yearSemester: newReg.year,
-      phone: newReg.phone,
-      college: 'Sanjivani University',
-      timestamp: newReg.timestamp,
-      createdDate: new Date().toLocaleDateString('en-IN'),
-      verified: true
-    }).catch(e => console.error('[Cloud SQL] Registration save error:', e));
+    try {
+      await addRegistrationInCloudSql({
+        id: newReg.id,
+        eventId: newReg.eventId,
+        eventTitle: newReg.eventTitle,
+        fullName: newReg.name,
+        email: newReg.email,
+        prn: newReg.prn,
+        department: newReg.branch,
+        yearSemester: newReg.year,
+        phone: newReg.phone,
+        college: 'Sanjivani University',
+        timestamp: newReg.timestamp,
+        createdDate: new Date().toLocaleDateString('en-IN'),
+        verified: true
+      });
+    } catch (e) {
+      console.error('[Cloud SQL] Registration save error:', e);
+    }
   }
 
   res.json({ ok: true, data: newReg });
@@ -461,9 +528,28 @@ function verifyAdmin(key, db) {
 }
 
 // Master Admin Call endpoint
-app.post('/api/admin/call', (req, res) => {
+app.post('/api/admin/call', async (req, res) => {
   const { key, action, payload = {}, id = null } = req.body;
   const db = getDB();
+
+  // If Cloud SQL is active, keep local cache completely fresh before handling any admin action
+  if (isCloudSqlAvailable()) {
+    try {
+      const sqlData = await getCloudSqlPortalData();
+      if (sqlData && Array.isArray(sqlData.members) && sqlData.members.length > 0) {
+        db.members = sqlData.members;
+        db.events = sqlData.events || [];
+        db.gallery = sqlData.gallery || [];
+        db.inquiries = sqlData.inquiries || [];
+        db.registrations = sqlData.registrations || [];
+        if (sqlData.privacyMode) db.privacyMode = sqlData.privacyMode;
+        if (sqlData.customLogoUrl !== undefined) db.customLogoUrl = sqlData.customLogoUrl;
+        saveDB(db);
+      }
+    } catch (e) {
+      console.warn('[Admin Call] Live SQL sync warning:', e.message);
+    }
+  }
 
   // 1. Action: Login / Verify
   if (action === 'login' || action === 'verify') {
@@ -520,8 +606,9 @@ app.post('/api/admin/call', (req, res) => {
 
   // 4. Action: Member Create
   if (action === 'member_create') {
-    const rawPhoto = payload.photo || payload.photo_url;
-    const savedPhoto = saveBase64Image(rawPhoto, 'member') || 'https://placehold.co/400x400/0b1b3d/ffffff?text=MESA';
+    const rawPhoto = payload.photo || payload.photo_url || '';
+    saveBase64Image(rawPhoto, 'member');
+    const savedPhoto = rawPhoto || 'https://placehold.co/400x400/0b1b3d/ffffff?text=MESA';
     
     const newMember = {
       id: 'stu-' + Date.now(),
@@ -546,7 +633,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertMemberInCloudSql(newMember).catch(e => console.error('[Cloud SQL] Member save error:', e));
+      try {
+        await upsertMemberInCloudSql(newMember);
+      } catch (e) {
+        console.error('[Cloud SQL] Member save error:', e);
+      }
     }
 
     return res.json({ ok: true, data: newMember });
@@ -563,7 +654,9 @@ app.post('/api/admin/call', (req, res) => {
     const current = db.members[idx];
     let photo = current.photo;
     if (payload.photo || payload.photo_url) {
-      photo = saveBase64Image(payload.photo || payload.photo_url, 'member');
+      const rawPhoto = payload.photo || payload.photo_url;
+      photo = rawPhoto;
+      saveBase64Image(rawPhoto, 'member');
     }
 
     const updated = {
@@ -587,7 +680,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertMemberInCloudSql(updated).catch(e => console.error('[Cloud SQL] Member update error:', e));
+      try {
+        await upsertMemberInCloudSql(updated);
+      } catch (e) {
+        console.error('[Cloud SQL] Member update error:', e);
+      }
     }
 
     return res.json({ ok: true, data: updated });
@@ -600,7 +697,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      deleteMemberInCloudSql(memberId).catch(e => console.error('[Cloud SQL] Member delete error:', e));
+      try {
+        await deleteMemberInCloudSql(memberId);
+      } catch (e) {
+        console.error('[Cloud SQL] Member delete error:', e);
+      }
     }
 
     return res.json({ ok: true, message: 'Member deleted.' });
@@ -609,7 +710,7 @@ app.post('/api/admin/call', (req, res) => {
   // 7. Action: Event Create
   if (action === 'event_create') {
     const rawQr = payload.phonepeQr || payload.phonepe_qr || null;
-    const savedQr = rawQr ? saveBase64Image(rawQr, 'qr') : null;
+    if (rawQr) saveBase64Image(rawQr, 'qr');
 
     const newEvent = {
       id: 'evt-' + Date.now(),
@@ -628,11 +729,11 @@ app.post('/api/admin/call', (req, res) => {
       fee: payload.fee ? Number(payload.fee) : 0,
       status: (payload.status || (payload.registration_enabled !== false ? 'OPEN' : 'CLOSED')).toUpperCase(),
       phonepeUpi: payload.phonepeUpi || payload.phonepe_upi || 'sanjivani.mesa@ybl',
-      phonepeQr: savedQr || null,
+      phonepeQr: rawQr,
       contactName: payload.contactName || payload.contact_name || 'Prof. Pankaj Patil (MESA Coordinator)',
       contactPhone: payload.contactPhone || payload.contact_phone || '+91 94237 88910',
       contactEmail: payload.contactEmail || payload.contact_email || 'mesa@sanjivani.edu.in',
-      badgeText: payload.badgeText || (payload.entryType === 'paid' ? 'Paid Entry' : 'Free Entry'),
+      badgeText: payload.badgeText || (payload.entryType === 'paid' ? `Paid Entry • ₹${payload.fee || 0}` : 'Free Entry'),
       desc: payload.desc || payload.description || '',
       icon: payload.icon || 'fa-calendar-check',
       gradient: payload.gradient || 'from-sanjivani-navy to-sanjivani-blue'
@@ -643,7 +744,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertEventInCloudSql(newEvent).catch(e => console.error('[Cloud SQL] Event save error:', e));
+      try {
+        await upsertEventInCloudSql(newEvent);
+      } catch (e) {
+        console.error('[Cloud SQL] Event save error:', e);
+      }
     }
 
     return res.json({ ok: true, data: newEvent });
@@ -659,7 +764,8 @@ app.post('/api/admin/call', (req, res) => {
 
     const current = db.events[idx];
     const rawQr = payload.phonepeQr || payload.phonepe_qr;
-    const savedQr = rawQr ? saveBase64Image(rawQr, 'qr') : (rawQr === null ? null : current.phonepeQr);
+    if (rawQr) saveBase64Image(rawQr, 'qr');
+    const finalQr = rawQr !== undefined ? rawQr : current.phonepeQr;
 
     const updated = {
       ...current,
@@ -678,7 +784,7 @@ app.post('/api/admin/call', (req, res) => {
       fee: payload.fee !== undefined ? Number(payload.fee) : current.fee,
       status: payload.status !== undefined ? payload.status.toUpperCase() : current.status,
       phonepeUpi: payload.phonepeUpi !== undefined ? payload.phonepeUpi : current.phonepeUpi,
-      phonepeQr: savedQr,
+      phonepeQr: finalQr,
       contactName: payload.contactName !== undefined ? payload.contactName : current.contactName,
       contactPhone: payload.contactPhone !== undefined ? payload.contactPhone : current.contactPhone,
       contactEmail: payload.contactEmail !== undefined ? payload.contactEmail : current.contactEmail,
@@ -692,7 +798,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertEventInCloudSql(updated).catch(e => console.error('[Cloud SQL] Event update error:', e));
+      try {
+        await upsertEventInCloudSql(updated);
+      } catch (e) {
+        console.error('[Cloud SQL] Event update error:', e);
+      }
     }
 
     return res.json({ ok: true, data: updated });
@@ -711,7 +821,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertEventInCloudSql(db.events[idx]).catch(e => console.error('[Cloud SQL] Event status toggle error:', e));
+      try {
+        await upsertEventInCloudSql(db.events[idx]);
+      } catch (e) {
+        console.error('[Cloud SQL] Event status toggle error:', e);
+      }
     }
 
     return res.json({ ok: true, data: db.events[idx], status: newStatus, message: `Event registration status set to ${newStatus}` });
@@ -724,7 +838,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      deleteEventInCloudSql(eventId).catch(e => console.error('[Cloud SQL] Event delete error:', e));
+      try {
+        await deleteEventInCloudSql(eventId);
+      } catch (e) {
+        console.error('[Cloud SQL] Event delete error:', e);
+      }
     }
 
     return res.json({ ok: true, message: 'Event deleted.' });
@@ -733,14 +851,14 @@ app.post('/api/admin/call', (req, res) => {
   // 10. Action: Gallery Create
   if (action === 'gallery_create') {
     const rawImage = payload.image || payload.image_url;
-    const savedImage = saveBase64Image(rawImage, 'gallery');
+    if (rawImage) saveBase64Image(rawImage, 'gallery');
 
     const newPhoto = {
       id: 'gal-' + Date.now(),
       title: payload.title || 'MESA Highlight',
       category: payload.category || 'Event',
       desc: payload.desc || payload.description || '',
-      image: savedImage || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80'
+      image: rawImage || 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80'
     };
 
     if (!db.gallery) db.gallery = [];
@@ -748,7 +866,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      upsertGalleryInCloudSql(newPhoto).catch(e => console.error('[Cloud SQL] Gallery save error:', e));
+      try {
+        await upsertGalleryInCloudSql(newPhoto);
+      } catch (e) {
+        console.error('[Cloud SQL] Gallery save error:', e);
+      }
     }
 
     return res.json({ ok: true, data: newPhoto });
@@ -761,7 +883,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      deleteGalleryInCloudSql(photoId).catch(e => console.error('[Cloud SQL] Gallery delete error:', e));
+      try {
+        await deleteGalleryInCloudSql(photoId);
+      } catch (e) {
+        console.error('[Cloud SQL] Gallery delete error:', e);
+      }
     }
 
     return res.json({ ok: true, message: 'Gallery item deleted.' });
@@ -787,7 +913,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      deleteRegistrationInCloudSql(regId).catch(e => console.error('[Cloud SQL] Registration delete error:', e));
+      try {
+        await deleteRegistrationInCloudSql(regId);
+      } catch (e) {
+        console.error('[Cloud SQL] Registration delete error:', e);
+      }
     }
 
     return res.json({ ok: true, message: 'Registration deleted.' });
@@ -797,7 +927,11 @@ app.post('/api/admin/call', (req, res) => {
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      clearRegistrationsInCloudSql().catch(e => console.error('[Cloud SQL] Registration clear error:', e));
+      try {
+        await clearRegistrationsInCloudSql();
+      } catch (e) {
+        console.error('[Cloud SQL] Registration clear error:', e);
+      }
     }
 
     return res.json({ ok: true, message: 'All registrations cleared.' });
@@ -815,12 +949,16 @@ app.post('/api/admin/call', (req, res) => {
   }
 
   // 15. Action: Privacy Setting
-  if (action === 'update_privacy' || action === 'privacy_mode') {
+  if (action === 'update_privacy' || action === 'privacy_mode' || action === 'privacy_toggle') {
     db.privacyMode = payload.mode || 'masked';
     saveDB(db);
 
     if (isCloudSqlAvailable()) {
-      setSettingInCloudSql('privacy_mode', db.privacyMode).catch(e => console.error('[Cloud SQL] Privacy mode error:', e));
+      try {
+        await setSettingInCloudSql('privacy_mode', db.privacyMode);
+      } catch (e) {
+        console.error('[Cloud SQL] Privacy mode error:', e);
+      }
     }
 
     return res.json({ ok: true, mode: db.privacyMode });
@@ -833,15 +971,19 @@ app.post('/api/admin/call', (req, res) => {
       db.customLogoUrl = null;
       saveDB(db);
       if (isCloudSqlAvailable()) {
-        setSettingInCloudSql('custom_logo_url', null).catch(() => {});
+        try {
+          await setSettingInCloudSql('custom_logo_url', null);
+        } catch (e) {}
       }
       return res.json({ ok: true, customLogoUrl: null, message: 'Restored default vector crest.' });
     }
-    const savedUrl = saveBase64Image(raw, 'crest');
-    db.customLogoUrl = savedUrl || raw;
+    saveBase64Image(raw, 'crest');
+    db.customLogoUrl = raw;
     saveDB(db);
     if (isCloudSqlAvailable()) {
-      setSettingInCloudSql('custom_logo_url', db.customLogoUrl).catch(() => {});
+      try {
+        await setSettingInCloudSql('custom_logo_url', db.customLogoUrl);
+      } catch (e) {}
     }
     return res.json({ ok: true, customLogoUrl: db.customLogoUrl, message: 'Custom university crest updated and saved.' });
   }
