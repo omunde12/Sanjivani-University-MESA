@@ -119,61 +119,125 @@
       clip-path: ellipse(120% 100% at 50% 100%);
     }
 
-    /* Member Card 3D Flip Animation */
+    /* Member Card 3D Flip Animation - Exact Same Location Flip */
+    #members-grid {
+      position: relative;
+      isolation: isolate;
+    }
+
     .member-flip-card {
-      perspective: 1200px;
-      height: 385px;
+      perspective: 1600px;
+      -webkit-perspective: 1600px;
+      perspective-origin: 50% 50%;
+      -webkit-perspective-origin: 50% 50%;
+      height: 395px;
+      width: 100%;
+      position: relative;
+      background: transparent;
+      display: block;
+      box-sizing: border-box;
+      isolation: isolate;
+      z-index: 1;
+      transform-origin: 50% 50%;
+      -webkit-transform-origin: 50% 50%;
+    }
+
+    /* Elevate active/flipping card so it never renders behind adjacent member cards */
+    .member-flip-card:hover,
+    .member-flip-card.is-flipped,
+    .member-flip-card:focus-within {
+      z-index: 40;
     }
 
     .member-flip-inner {
-      position: relative;
+      position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
-      transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+      transform-origin: 50% 50%;
+      -webkit-transform-origin: 50% 50%;
       transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transition: transform 0.5s ease-in-out;
+      -webkit-transition: -webkit-transform 0.5s ease-in-out;
       will-change: transform;
     }
 
-    /* Subtle hover flip for pointer/desktop devices */
+    /* In-place flip for hover */
     @media (hover: hover) and (pointer: fine) {
       .member-flip-card:hover .member-flip-inner {
         transform: rotateY(180deg);
+        -webkit-transform: rotateY(180deg);
       }
     }
 
-    /* Touch or manual toggle class for mobile devices */
+    /* In-place flip for click / touch toggle */
     .member-flip-card.is-flipped .member-flip-inner {
       transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
     }
 
     .member-card-front,
     .member-card-back {
       position: absolute;
-      inset: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       width: 100%;
       height: 100%;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
+      margin: 0;
+      box-sizing: border-box;
+      transform-origin: 50% 50%;
+      -webkit-transform-origin: 50% 50%;
+      -webkit-backface-visibility: hidden !important;
+      backface-visibility: hidden !important;
       border-radius: 1rem;
     }
 
+    /* Front side: Fully opaque white background, exact 0deg */
     .member-card-front {
       transform: rotateY(0deg);
-      z-index: 2;
+      -webkit-transform: rotateY(0deg);
+      background-color: #ffffff !important;
+      pointer-events: auto;
     }
 
+    /* Back side: Fully opaque navy background, exact 180deg */
     .member-card-back {
       transform: rotateY(180deg);
-      z-index: 1;
+      -webkit-transform: rotateY(180deg);
+      background-color: #0b1b3d !important;
+      background: #0b1b3d linear-gradient(135deg, #0b1b3d 0%, #102d62 50%, #071329 100%) !important;
+      pointer-events: none;
+    }
+
+    /* Seamless pointer-events switching when card is flipped */
+    @media (hover: hover) and (pointer: fine) {
+      .member-flip-card:hover .member-card-front {
+        pointer-events: none;
+      }
+      .member-flip-card:hover .member-card-back {
+        pointer-events: auto;
+      }
+    }
+
+    .member-flip-card.is-flipped .member-card-front {
+      pointer-events: none;
+    }
+    .member-flip-card.is-flipped .member-card-back {
+      pointer-events: auto;
     }
 
     @media (prefers-reduced-motion: reduce) {
       .member-flip-inner {
         transition: none !important;
+        -webkit-transition: none !important;
       }
       .member-flip-card:hover .member-flip-inner,
       .member-flip-card.is-flipped .member-flip-inner {
         transform: none !important;
+        -webkit-transform: none !important;
       }
     }
 
@@ -3556,6 +3620,33 @@
       }
     }
 
+    // Sort Council Members ensuring Dr. K.C. Bhosale is always first in line
+    function sortCouncilMembersClient(members) {
+      if (!Array.isArray(members)) return [];
+      return [...members].sort((a, b) => {
+        const isDrA = a.id === 'fac-1' || (a.name && a.name.toUpperCase().includes('BHOSALE'));
+        const isDrB = b.id === 'fac-1' || (b.name && b.name.toUpperCase().includes('BHOSALE'));
+        if (isDrA && !isDrB) return -1;
+        if (!isDrA && isDrB) return 1;
+
+        const isPatilA = a.id === 'fac-2' || (a.name && a.name.toUpperCase().includes('PATIL'));
+        const isPatilB = b.id === 'fac-2' || (b.name && b.name.toUpperCase().includes('PATIL'));
+        if (isPatilA && !isPatilB) return -1;
+        if (!isPatilA && isPatilB) return 1;
+
+        const orderA = typeof a.sortOrder === 'number' && a.sortOrder > 0 ? a.sortOrder : 999;
+        const orderB = typeof b.sortOrder === 'number' && b.sortOrder > 0 ? b.sortOrder : 999;
+        if (orderA !== orderB) return orderA - orderB;
+
+        const rankMap = { faculty: 1, core: 2, coordinator: 3, cr: 4, member: 5 };
+        const rankA = rankMap[a.category] || 9;
+        const rankB = rankMap[b.category] || 9;
+        if (rankA !== rankB) return rankA - rankB;
+
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    }
+
     function renderMembers(membersToRender) {
       const grid = document.getElementById('members-grid');
       const noResults = document.getElementById('no-results');
@@ -3571,7 +3662,9 @@
       if (noResults) noResults.classList.add('hidden');
       grid.classList.remove('hidden');
 
-      grid.innerHTML = membersToRender.map(member => {
+      const sortedMembers = sortCouncilMembersClient(membersToRender);
+
+      grid.innerHTML = sortedMembers.map(member => {
         const badgeColor = getCategoryBadgeColor(member.category);
         const categoryLabel = member.category === 'faculty' ? 'Faculty Dignitary'
           : member.category === 'core' ? 'Core Council'
@@ -3597,23 +3690,23 @@
 
         return `
           <div 
-            onclick="openMemberModal('${member.id}')" 
+            onclick="handleMemberCardClick(event, '${member.id}', this)" 
             class="member-flip-card member-card group cursor-pointer"
-            title="Click to view full dossier • Hover to reveal responsibilities & contact"
+            title="Click or hover to flip card in-place"
           >
             <div class="member-flip-inner">
               
               <!-- ==================== FRONT OF CARD ==================== -->
-              <div class="member-card-front bg-white rounded-2xl p-5 border border-slate-200 shadow-sm group-hover:shadow-card-hover group-hover:border-sanjivani-sky/60 transition-all duration-300 flex flex-col items-center text-center relative overflow-hidden">
+              <div class="member-card-front bg-white rounded-2xl p-5 border border-slate-200 shadow-sm group-hover:shadow-card-hover group-hover:border-sanjivani-sky/60 transition-all duration-300 flex flex-col items-center text-center relative">
                 <!-- Top Subtle Accent Ribbon for Faculty & Core Council -->
-                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300"></div>' : ''}
-                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sanjivani-navy via-sanjivani-blue to-sanjivani-accent"></div>' : ''}
-                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 to-teal-400"></div>' : ''}
-                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-300"></div>' : ''}
+                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300 rounded-t-2xl"></div>' : ''}
+                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sanjivani-navy via-sanjivani-blue to-sanjivani-accent rounded-t-2xl"></div>' : ''}
+                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-500 to-teal-400 rounded-t-2xl"></div>' : ''}
+                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-300 rounded-t-2xl"></div>' : ''}
 
                 <!-- Top Left QR Quick Pass Button -->
                 <button 
-                  type="button"
+                  type="button" 
                   onclick="event.stopPropagation(); openMemberQRModal('${member.id}')"
                   class="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-slate-100/90 hover:bg-white text-slate-700 hover:text-sanjivani-navy border border-slate-200/80 flex items-center justify-center text-xs shadow-xs transition-all z-10 hover:scale-105"
                   title="Scan or View Member QR Code & ID Badge"
@@ -3625,7 +3718,7 @@
                 <div class="absolute top-2.5 right-2.5 flex items-center gap-1 z-10">
                   ${isAuthorizedUser ? `
                     <button 
-                      type="button"
+                      type="button" 
                       onclick="event.stopPropagation(); openEditMemberModal('${member.id}')"
                       class="w-7 h-7 rounded-full bg-blue-50 hover:bg-blue-100 text-sanjivani-blue border border-blue-200 flex items-center justify-center text-xs shadow-sm transition-all"
                       title="Quick Edit Profile (Authorized)"
@@ -3634,10 +3727,10 @@
                     </button>
                   ` : ''}
                   <button 
-                    type="button"
-                    onclick="event.stopPropagation(); toggleMemberCardFlip(this)"
+                    type="button" 
+                    onclick="toggleMemberCardFlip(event, this)"
                     class="w-7 h-7 rounded-full bg-slate-100/90 hover:bg-blue-50 text-slate-500 hover:text-sanjivani-blue border border-slate-200 flex items-center justify-center text-[10px] shadow-xs transition-all"
-                    title="Flip card for responsibilities & contact"
+                    title="Flip card in-place for responsibilities & contact"
                   >
                     <i class="fa-solid fa-arrows-rotate"></i>
                   </button>
@@ -3677,14 +3770,27 @@
 
                 <!-- Bottom Quick Info & Interactive Flip Indicator -->
                 <div class="mt-auto pt-3 border-t border-slate-100 w-full flex items-center justify-between text-[11px] text-slate-500">
-                  <span class="truncate font-medium text-slate-600">${member.year || 'Mech Engg'}</span>
+                  <button 
+                    type="button"
+                    onclick="event.stopPropagation(); openMemberModal('${member.id}')"
+                    class="text-[11px] font-semibold text-sanjivani-navy hover:text-sanjivani-blue hover:underline flex items-center gap-1"
+                    title="Open full detailed council dossier modal"
+                  >
+                    <i class="fa-solid fa-id-badge text-xs text-sanjivani-blue"></i>
+                    <span>Dossier</span>
+                  </button>
                   
                   <div class="flex items-center space-x-1.5">
-                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sanjivani-blue bg-blue-50/90 px-2 py-0.5 rounded-full border border-blue-100">
+                    <button 
+                      type="button" 
+                      onclick="toggleMemberCardFlip(event, this)"
+                      class="inline-flex items-center gap-1 text-[10px] font-semibold text-sanjivani-blue bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full border border-blue-100 transition-colors"
+                      title="Flip card in-place"
+                    >
                       <i class="fa-solid fa-arrows-rotate text-[9px]"></i>
                       <span class="text-[10px]">Flip</span>
-                    </span>
-                    <span class="text-sanjivani-sky group-hover:translate-x-0.5 transition-transform font-bold">
+                    </button>
+                    <span class="text-sanjivani-sky font-bold">
                       <i class="fa-solid fa-angle-right text-xs"></i>
                     </span>
                   </div>
@@ -3692,15 +3798,15 @@
               </div>
 
               <!-- ==================== BACK OF CARD ==================== -->
-              <div class="member-card-back bg-gradient-to-br from-[#0b1b3d] via-[#102d62] to-[#071329] text-white p-4 sm:p-5 rounded-2xl border border-sanjivani-sky/40 shadow-card-hover flex flex-col justify-between text-left relative overflow-hidden">
+              <div class="member-card-back bg-gradient-to-br from-[#0b1b3d] via-[#102d62] to-[#071329] text-white p-5 rounded-2xl border border-sanjivani-sky/40 shadow-card-hover flex flex-col justify-between text-left relative">
                 <!-- Subtle Blueprint Glow Grid -->
-                <div class="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:14px_14px]"></div>
+                <div class="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:14px_14px] rounded-2xl"></div>
 
                 <!-- Top Ribbon -->
-                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-amber-300"></div>' : ''}
-                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-400 via-blue-400 to-indigo-400"></div>' : ''}
-                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-400"></div>' : ''}
-                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 to-teal-300"></div>' : ''}
+                ${member.category === 'faculty' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 to-amber-300 rounded-t-2xl"></div>' : ''}
+                ${member.category === 'core' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-sky-400 via-blue-400 to-indigo-400 rounded-t-2xl"></div>' : ''}
+                ${member.category === 'coordinator' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 to-emerald-400 rounded-t-2xl"></div>' : ''}
+                ${member.category === 'cr' ? '<div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 to-teal-300 rounded-t-2xl"></div>' : ''}
 
                 <!-- Header: Member Identity & Flip Back Button -->
                 <div class="relative z-10 pb-2 border-b border-white/10 flex items-start justify-between gap-2">
@@ -3711,8 +3817,8 @@
                   </div>
                   
                   <button 
-                    type="button"
-                    onclick="event.stopPropagation(); toggleMemberCardFlip(this)"
+                    type="button" 
+                    onclick="toggleMemberCardFlip(event, this)"
                     class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white/90 border border-white/20 flex items-center justify-center text-xs shrink-0 transition-colors"
                     title="Flip back to front"
                   >
@@ -3763,14 +3869,23 @@
 
                 <!-- Back Footer: Click Action Callout -->
                 <div class="relative z-10 pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-300">
-                  <span class="text-sanjivani-sky font-bold flex items-center gap-1 hover:underline">
+                  <button 
+                    type="button"
+                    onclick="event.stopPropagation(); openMemberModal('${member.id}')"
+                    class="text-sanjivani-sky hover:text-white font-bold flex items-center gap-1.5 hover:underline transition-colors"
+                    title="Open full detailed council dossier modal"
+                  >
                     <i class="fa-solid fa-id-badge"></i>
                     <span>View Full Dossier</span>
-                  </span>
-                  <div class="flex items-center gap-1 text-slate-400">
+                  </button>
+                  <button 
+                    type="button"
+                    onclick="event.stopPropagation(); openMemberQRModal('${member.id}')"
+                    class="flex items-center gap-1 text-slate-300 hover:text-white transition-colors"
+                  >
                     <span>QR Pass</span>
                     <i class="fa-solid fa-arrow-right text-[9px] text-sanjivani-sky"></i>
-                  </div>
+                  </button>
                 </div>
 
               </div>
@@ -3781,10 +3896,26 @@
       }).join('');
     }
 
+    // Handle Member Card Click - flips in place at exact same location
+    function handleMemberCardClick(event, memberId, cardEl) {
+      if (event.target.closest('button') || event.target.closest('a') || event.target.closest('input')) {
+        return;
+      }
+      event.stopPropagation();
+      const card = cardEl || (event.currentTarget && event.currentTarget.closest('.member-flip-card'));
+      if (card) {
+        card.classList.toggle('is-flipped');
+      }
+    }
+
     // Member Card 3D Flip Toggle (for touch/click controls)
-    function toggleMemberCardFlip(buttonEl) {
-      if (!buttonEl) return;
-      const card = buttonEl.closest('.member-flip-card');
+    function toggleMemberCardFlip(e, buttonEl) {
+      if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      }
+      const btn = buttonEl || (e && e.currentTarget) || (e && e.target);
+      if (!btn) return;
+      const card = btn.closest('.member-flip-card');
       if (card) {
         card.classList.toggle('is-flipped');
       }
@@ -6691,7 +6822,7 @@
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.members) && data.members.length > 0) {
-            councilMembersData = data.members;
+            councilMembersData = sortCouncilMembersClient(data.members);
           }
           if (Array.isArray(data.events) && data.events.length > 0) {
             eventsData = data.events;

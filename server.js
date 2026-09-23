@@ -100,9 +100,37 @@ function loadSeedOrBackupDB() {
   return null;
 }
 
+// Ensure Dr. K.C. Bhosale (Executive HOD & President) is always in the first line
+export function sortCouncilMembers(members) {
+  if (!Array.isArray(members)) return [];
+  return [...members].sort((a, b) => {
+    const isDrA = a.id === 'fac-1' || (a.name && a.name.toUpperCase().includes('BHOSALE'));
+    const isDrB = b.id === 'fac-1' || (b.name && b.name.toUpperCase().includes('BHOSALE'));
+    if (isDrA && !isDrB) return -1;
+    if (!isDrA && isDrB) return 1;
+
+    const isPatilA = a.id === 'fac-2' || (a.name && a.name.toUpperCase().includes('PATIL'));
+    const isPatilB = b.id === 'fac-2' || (b.name && b.name.toUpperCase().includes('PATIL'));
+    if (isPatilA && !isPatilB) return -1;
+    if (!isPatilA && isPatilB) return 1;
+
+    const orderA = typeof a.sortOrder === 'number' && a.sortOrder > 0 ? a.sortOrder : 999;
+    const orderB = typeof b.sortOrder === 'number' && b.sortOrder > 0 ? b.sortOrder : 999;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const rankMap = { faculty: 1, core: 2, coordinator: 3, cr: 4, member: 5 };
+    const rankA = rankMap[a.category] || 9;
+    const rankB = rankMap[b.category] || 9;
+    if (rankA !== rankB) return rankA - rankB;
+
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
+
 // Database helper functions: Guaranteed Non-Volatile & Self-Healing
 function getDB() {
   if (cachedDB && Array.isArray(cachedDB.members) && cachedDB.members.length >= 10) {
+    cachedDB.members = sortCouncilMembers(cachedDB.members);
     return cachedDB;
   }
 
@@ -113,6 +141,7 @@ function getDB() {
       const raw = fs.readFileSync(fileToCheck, 'utf8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.members) && parsed.members.length >= 10) {
+        parsed.members = sortCouncilMembers(parsed.members);
         cachedDB = parsed;
         return cachedDB;
       }
@@ -125,6 +154,7 @@ function getDB() {
   const fallback = loadSeedOrBackupDB();
   if (fallback) {
     console.warn('[MESA Database] Self-healing database from verified seed/backup...');
+    fallback.members = sortCouncilMembers(fallback.members);
     cachedDB = fallback;
     saveDB(cachedDB);
     return cachedDB;

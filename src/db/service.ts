@@ -196,6 +196,35 @@ export async function getCloudSqlPortalData() {
       sortOrder: m.sortOrder || 0
     }));
 
+    // Ensure Dr. K.C. Bhosale (President / Executive HOD) is first in line,
+    // followed by Mr. Pankaj Patil (MESA Coordinator) and Student Council Leadership
+    formattedMembers.sort((a, b) => {
+      // 1. Dr. K.C. Bhosale (Executive HOD & President) is top priority
+      const isDrA = a.id === 'fac-1' || a.name.toUpperCase().includes('BHOSALE');
+      const isDrB = b.id === 'fac-1' || b.name.toUpperCase().includes('BHOSALE');
+      if (isDrA && !isDrB) return -1;
+      if (!isDrA && isDrB) return 1;
+
+      // 2. Mr. Pankaj Patil (Faculty Coordinator) is second in line
+      const isPatilA = a.id === 'fac-2' || a.name.toUpperCase().includes('PATIL');
+      const isPatilB = b.id === 'fac-2' || b.name.toUpperCase().includes('PATIL');
+      if (isPatilA && !isPatilB) return -1;
+      if (!isPatilA && isPatilB) return 1;
+
+      // 3. Official sortOrder if explicitly defined
+      const orderA = typeof a.sortOrder === 'number' && a.sortOrder > 0 ? a.sortOrder : 999;
+      const orderB = typeof b.sortOrder === 'number' && b.sortOrder > 0 ? b.sortOrder : 999;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // 4. Category ranking (Faculty -> Core Council -> Coordinator -> CR -> Member)
+      const rankMap: Record<string, number> = { faculty: 1, core: 2, coordinator: 3, cr: 4, member: 5 };
+      const rankA = rankMap[a.category] || 9;
+      const rankB = rankMap[b.category] || 9;
+      if (rankA !== rankB) return rankA - rankB;
+
+      return a.name.localeCompare(b.name);
+    });
+
     // Format events back to frontend schema
     const formattedEvents = events.map(e => ({
       id: e.id,
@@ -277,6 +306,7 @@ export async function upsertMemberInCloudSql(member: any) {
         responsibilities: member.responsibilities || '',
         photo: member.photo || '',
         isFaculty: !!member.isFaculty,
+        sortOrder: member.sortOrder || 0,
         updatedAt: new Date()
       }
     });
